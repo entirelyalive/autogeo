@@ -434,8 +434,21 @@ class GeoreferencingEngine(QObject):
                 self.error_occurred.emit("Failed to read raster data")
                 return False
             
-            # Convert to numpy array
-            data = np.frombuffer(block.data(), dtype=np.float32).reshape((read_height, read_width))
+            # Convert to numpy array with correct data type
+            raw_bytes = block.data()
+            expected_pixels = read_width * read_height
+            bytes_per_pixel = max(1, len(raw_bytes) // expected_pixels)
+
+            if bytes_per_pixel >= 8:
+                dtype = np.float64
+            elif bytes_per_pixel >= 4:
+                dtype = np.float32
+            elif bytes_per_pixel >= 2:
+                dtype = np.uint16
+            else:
+                dtype = np.uint8
+
+            data = np.frombuffer(raw_bytes, dtype=dtype).reshape((read_height, read_width)).astype(np.float32)
             
             # Normalize to 0-255 range
             data_min, data_max = np.nanmin(data), np.nanmax(data)
