@@ -205,13 +205,14 @@ class AutoGeoreferencer:
             
             # Get parameters from dialog
             params_dict = self.dlg.get_parameters()
-            
+            raster_layers = self.dlg.get_selected_raster_layers()
+
             # Validate parameters
-            if not params_dict['raster_layer']:
+            if not raster_layers:
                 QMessageBox.warning(
                     self.iface.mainWindow(),
                     "Invalid Parameters",
-                    "Please select a raster layer to georeference."
+                    "Please select at least one raster layer to georeference."
                 )
                 return
             
@@ -223,41 +224,41 @@ class AutoGeoreferencer:
                 )
                 return
             
-            # Create processing parameters
-            proc_params = ProcessingParameters(
-                raster_layer=params_dict['raster_layer'],
-                seed_lat=params_dict['latitude'],
-                seed_lon=params_dict['longitude'],
-                box_size=params_dict['box_size'],
-                output_dir=params_dict['output_directory'],
-                target_crs=params_dict['target_crs'],
-                zoom_level=params_dict['zoom_level'],
-                use_edge_detection=params_dict.get('use_edge_detection', True),
-                use_clahe=params_dict.get('use_clahe', True),
-                manual_fallback=params_dict['use_manual_fallback']
-            )
-            
-            # Create and configure processing engine
+            # Create and configure processing engine once
             self.engine = GeoreferencingEngine()
-            
-            # Create progress dialog
-            self.progress_dialog = QProgressDialog(
-                "Initializing georeferencing process...",
-                "Cancel", 0, 100, self.iface.mainWindow()
-            )
-            self.progress_dialog.setWindowTitle("Auto Georeferencer")
-            self.progress_dialog.setWindowModality(Qt.WindowModal)
-            self.progress_dialog.show()
-            
+
             # Connect engine signals
             self.engine.progress_updated.connect(self.update_progress)
             self.engine.log_message.connect(self.log_message)
             self.engine.error_occurred.connect(self.handle_error)
             self.engine.processing_finished.connect(self.processing_finished)
             self.engine.manual_mode_requested.connect(self.handle_manual_mode)
-            
-            # Start processing
-            self.engine.process_georeferencing(proc_params)
+
+            for idx, layer in enumerate(raster_layers, start=1):
+                proc_params = ProcessingParameters(
+                    raster_layer=layer,
+                    seed_lat=params_dict['latitude'],
+                    seed_lon=params_dict['longitude'],
+                    box_size=params_dict['box_size'],
+                    output_dir=params_dict['output_directory'],
+                    target_crs=params_dict['target_crs'],
+                    zoom_level=params_dict['zoom_level'],
+                    use_edge_detection=params_dict.get('use_edge_detection', True),
+                    use_clahe=params_dict.get('use_clahe', True),
+                    manual_fallback=params_dict['use_manual_fallback']
+                )
+
+                # Create progress dialog per raster
+                self.progress_dialog = QProgressDialog(
+                    f"Processing {layer.name()} ({idx}/{len(raster_layers)})...",
+                    "Cancel", 0, 100, self.iface.mainWindow()
+                )
+                self.progress_dialog.setWindowTitle("Auto Georeferencer")
+                self.progress_dialog.setWindowModality(Qt.WindowModal)
+                self.progress_dialog.show()
+
+                # Start processing
+                self.engine.process_georeferencing(proc_params)
             
         except Exception as e:
             QMessageBox.critical(

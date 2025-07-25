@@ -203,6 +203,12 @@ class GeoreferencingEngine(QObject):
             max_lat = params.seed_lat + params.box_size
             min_lon = params.seed_lon - params.box_size
             max_lon = params.seed_lon + params.box_size
+
+            # Clamp to valid lat/lon ranges to avoid excessive tile requests
+            min_lat = max(min_lat, -85.05112878)  # Web Mercator limit
+            max_lat = min(max_lat, 85.05112878)
+            min_lon = max(min_lon, -180.0)
+            max_lon = min(max_lon, 180.0)
             
             self.log_message.emit(f"Reference window: {min_lat:.6f}, {min_lon:.6f} to {max_lat:.6f}, {max_lon:.6f}")
             
@@ -261,6 +267,13 @@ class GeoreferencingEngine(QObject):
         max_tile_x = int((max_x + ORIGIN_SHIFT) / tile_size)
         min_tile_y = int((ORIGIN_SHIFT - max_y) / tile_size)
         max_tile_y = int((ORIGIN_SHIFT - min_y) / tile_size)
+
+        # Clamp to valid tile ranges
+        max_tile_index = (2 ** zoom) - 1
+        min_tile_x = max(0, min(max_tile_index, min_tile_x))
+        max_tile_x = max(0, min(max_tile_index, max_tile_x))
+        min_tile_y = max(0, min(max_tile_index, min_tile_y))
+        max_tile_y = max(0, min(max_tile_index, max_tile_y))
         
         return {
             'min_x': min_tile_x,
