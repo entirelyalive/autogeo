@@ -1,0 +1,22 @@
+[general]
+name=Auto Georeferencer
+qgisMinimumVersion=3.16
+description=Automatically georeferences un-referenced raster images by matching them to USGS topo WMTS basemap
+version=1.0.0
+author=QGIS Plugin Developer
+email=developer@example.com
+
+about=This plugin automatically georeferences scanned aerial photos and other raster images by matching features to a USGS topographic WMTS basemap. It uses computer vision techniques to detect common features between images and solve for geometric transformations. When automatic matching fails, it gracefully falls back to manual tie-point mode.
+
+tracker=https://github.com/example/auto-georeferencer/issues
+repository=https://github.com/example/auto-georeferencer
+homepage=https://github.com/example/auto-georeferencer
+
+category=Raster
+icon=icon.png
+experimental=False
+deprecated=False
+
+hasProcessingProvider=yes
+
+tags=georeferencing,raster,automatic,computer vision,WMTS,USGS
