@@ -5,8 +5,18 @@ Auto Georeferencer Dialog - Enhanced with dependency status
 
 import os
 from qgis.PyQt import uic
-from qgis.PyQt.QtCore import pyqtSignal, QThread, QTimer
-from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox, QProgressDialog
+from qgis.PyQt.QtCore import pyqtSignal, QThread, QTimer, Qt
+from qgis.PyQt.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QMessageBox,
+    QProgressDialog,
+    QDialogButtonBox,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+    QAbstractItemView,
+)
 from qgis.PyQt.QtGui import QPixmap, QPalette
 from qgis.core import QgsProject, QgsRasterLayer, QgsCoordinateReferenceSystem
 from qgis.gui import QgsProjectionSelectionWidget
@@ -19,11 +29,14 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 
 
 class AutoGeoreferencerDialog(QDialog, FORM_CLASS):
-    
+
     def __init__(self, parent=None):
         """Constructor."""
         super(AutoGeoreferencerDialog, self).__init__(parent)
         self.setupUi(self)
+
+        # Store multiple selected rasters
+        self.selected_rasters = []
         
         # Initialize UI components
         self.setup_ui_components()
@@ -60,6 +73,7 @@ class AutoGeoreferencerDialog(QDialog, FORM_CLASS):
         """Connect UI signals to slots"""
         self.pushButton_browseOutput.clicked.connect(self.browse_output_directory)
         self.pushButton_refreshLayers.clicked.connect(self.populate_raster_layers)
+        self.pushButton_selectRasters.clicked.connect(self.select_multiple_rasters)
         self.pushButton_checkDeps.clicked.connect(self.check_dependencies)
         
         # Advanced options toggle
@@ -94,6 +108,13 @@ class AutoGeoreferencerDialog(QDialog, FORM_CLASS):
             
         for layer in raster_layers:
             self.comboBox_rasterLayer.addItem(layer.name(), layer.id())
+
+        # Preserve selections in the multiple raster list
+        if self.selected_rasters:
+            current_ids = [lyr.id() for lyr in self.selected_rasters]
+            for idx in range(self.comboBox_rasterLayer.count()):
+                if self.comboBox_rasterLayer.itemData(idx) in current_ids:
+                    self.comboBox_rasterLayer.setCurrentIndex(idx)
 
     def browse_output_directory(self):
         """Open file dialog to select output directory"""
@@ -151,6 +172,43 @@ class AutoGeoreferencerDialog(QDialog, FORM_CLASS):
             return QgsProject.instance().mapLayer(layer_id)
         return None
 
+    def select_multiple_rasters(self):
+        """Open a dialog to select multiple raster layers"""
+        layers = QgsProject.instance().mapLayers().values()
+        raster_layers = [lyr for lyr in layers if isinstance(lyr, QgsRasterLayer)]
+        if not raster_layers:
+            QMessageBox.warning(self, "No Rasters", "No raster layers loaded.")
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Select Raster Layers")
+        layout = QVBoxLayout(dlg)
+        list_widget = QListWidget()
+        list_widget.setSelectionMode(QAbstractItemView.MultiSelection)
+        for lyr in raster_layers:
+            item = QListWidgetItem(lyr.name())
+            item.setData(Qt.UserRole, lyr.id())
+            if lyr in self.selected_rasters:
+                item.setSelected(True)
+            list_widget.addItem(item)
+        layout.addWidget(list_widget)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addWidget(buttons)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        if dlg.exec_() == QDialog.Accepted:
+            self.selected_rasters = [
+                QgsProject.instance().mapLayer(it.data(Qt.UserRole))
+                for it in list_widget.selectedItems()
+            ]
+
+    def get_selected_raster_layers(self):
+        """Return selected raster layers (multi-selection)"""
+        if self.selected_rasters:
+            return self.selected_rasters
+        layer = self.get_selected_raster_layer()
+        return [layer] if layer else []
+
     def get_parameters(self):
         """Get all parameters from the dialog"""
         params = {
@@ -180,9 +238,9 @@ class AutoGeoreferencerDialog(QDialog, FORM_CLASS):
         """Validate all input parameters"""
         params = self.get_parameters()
         
-        # Check raster layer
-        if not params['raster_layer']:
-            return False, "Please select a raster layer to georeference."
+        # Check raster layers
+        if not self.get_selected_raster_layers():
+            return False, "Please select at least one raster layer to georeference."
         
         # Check output directory
         if not os.path.exists(params['output_directory']):
